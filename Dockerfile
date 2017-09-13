@@ -2,7 +2,7 @@ FROM centos:7
 MAINTAINER jdcasey@commonjava.org
 
 RUN yum -y update \
-    && yum -y install java-1.8.0-openjdk-devel git which iproute \
+    && yum -y install java-1.8.0-openjdk-devel git which iproute bzip2 \
     && yum clean all \
     && useradd maven
 
