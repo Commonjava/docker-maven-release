@@ -23,6 +23,13 @@ if [ ! -e /home/maven/.gnupg/gpg.conf ]; then
   release=N
 fi
 
+if [ -e /home/maven/gitconf/.gitconfig ]; then
+  cp /home/maven/gitconf/.gitconfig /home/maven/.gitconfig
+else
+  echo "Cannot find git config file. Check that you specified \"-v /path/to/gitconf:/home/maven/gitconf\""
+  release=N
+fi
+
 if [ "${release}" != "Y" ]; then
     echo "Release cannot proceed."
     exit 1

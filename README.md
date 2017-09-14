@@ -1,0 +1,84 @@
+# Docker Release Image for Commonjava Maven Projects
+
+This Docker image is intended to standardize the way we run project releases where Apache Maven is in use. It forms a clean, known build environment in which there is no pre-existing Maven state (local repository) and where only the basics necessary for a Maven release are present.
+
+## Getting the Image
+
+This image should be available via:
+
+```
+$ docker pull docker.io/commonjava/maven-release
+```
+
+## Building the Image
+
+If you make changes to the environment, you'll need to rebuild it. Maybe the easiest way to do this is:
+
+```
+$ ./scripts/build-image.sh
+```
+
+This script simply builds the Dockerfile from the current directory ($PWD) using the tag `docker.io/commonjava/maven-release`.
+
+**NOTE:** You'll need to run the `build-image.sh` script from the **root** of this git repository, where the Dockerfile is located.
+
+## Using the Image
+
+To run a release with this Docker image, you'll need to satisfy some prerequisites in terms of configuration. These congfiguration files are not stored in the image because they're private to you. This git repository contains a convenience script for launching a Docker container to run your release, but it assumes you have all of your configuration assembled in a directory within the git working directory called `private/`. Follow the instructions below to setup these configurations.
+
+### Pre-Requisite: GPG
+
+You need to have a GPG configuration directory that you can provide via volume mount to the Docker container. To set this up, you need to install GPG, then generate a default key for signing build output. You can find more information about this at: [Working with PGP Signatures - Sonatype](http://central.sonatype.org/pages/working-with-pgp-signatures.html).
+
+Once you have a directory called $HOME/.gnupg, you can copy this whole directory to `<maven-release-git-workdir>/private/gnupg`.
+
+
+### Pre-Requisite: Maven Settings
+
+You'll need a Maven `settings.xml` capable of authenticating to the Sonatype OSS staging server, and potentially, to Docker. It will also have to know about the GPG key / passphrase you setup above. Since we really don't want to leave passwords available in plaintext in your `settings.xml`, it's a good idea to encrypt the passwords before adding them. To do that, its helpful if you have Maven installed. If you don't, install it now.
+
+Next, copy the `<maven-release-git-workdir>/private.template/m2` directory to `$HOME/.m2`. If you have a `$HOME/.m2` already, move it out of the way temporarily. Follow the instructions at [Maven - Password Encryption](https://maven.apache.org/guides/mini/guide-encryption.html) to setup your master key and then encrypt passphrases for all of the necessary fields in the `$HOME/.m2/settings.xml` you just copied. There will be 3-4 passwords / passphrases you need to encrypt here.
+
+Once that's complete, copy your `$HOME/.m2` to `<maven-release-git-workdir>/private/m2` and, if appropriate, restore your original `$HOME/.m2` directory.
+
+### Pre-Requisite: Git Configuration
+
+Since a standard Maven release involves creation of a Git tag (not to mention pushing various commits), you need to give Git some basic information about who you are. You can copy the `<maven-release-git-workdir>/private.template/gitconf` directory into `<maven-release-git-workdir>/private/gitconf` and then just edit the file to fill in real values for the placeholders.
+
+### Pre-Requisite: SSH Keys for GitHub
+
+Again, since the Maven release will tag and push commits to GitHub, it's important that you have a SSH public key registered on GitHub (see your account settings, under SSH Keys on the left-hand side). Then, you have to provide the corresponding private key to this Docker container so it can push content on your behalf. You can simply copy the correct `id_rsa` file to `<maven-release-git-workdir>/private/ssh`.
+
+### Fixing the Selinux Context for `private/`
+
+Once you assemble all of these configurations, you may need to correct the selinux context on the `private/` sub-directories:
+
+```
+$ chcon -Rt svirt_sandbox_file_t <maven-release-git-workdir>/private/*
+```
+
+### Ready to Run
+
+The final pieces you have to know before you run your release are:
+
+* Your GitHub URL (Use the `git@github.com:Commonjava/foo.git` / SSH URL so you can use your SSH key)
+* The Git branch from which you wish to run the release (OPTIONAL; defaults to `master`)
+
+When you have all this assembled, you can run the release with:
+
+```
+$ ./scripts/start-release.sh <GIT-URL> [<GIT-BRANCH>] [<MAVEN_OPTIONS>]
+```
+
+**NOTE:** If you want to provide extra Maven options to this script, you'll need to add the branch to the call, even if the branch is `master`.
+
+### Cleaning Up
+
+If you peek at the `scripts/start-release.sh` script, you'll see that we don't use the Docker `--rm` option to the run command. This is intentional. If the build fails for a mysterious reason, keeping the container will allow you to copy the contents from the `/home/maven/` directory and possibly figure out what went wrong.
+
+The consequence of this is that, if you don't clean up your Docker system yourself, you'll begin to accumulate old maven-release containers. This causes quite a lot of clutter, and can fill up your hard drive over time. To clean, you can use:
+
+```
+$ for c in $(docker ps -a | grep 'commonjava/maven-release' | grep Exited | awk '{print $1}'); do docker rm $c; done
+```
+

@@ -18,7 +18,7 @@ RUN chown -R maven /home/maven/bin
 
 ADD bin/run-release.sh /home/maven/bin/run-release.sh
 
-VOLUME ["/home/maven/.m2", "/home/maven/.ssh", "/home/maven/.gnupg"]
+VOLUME ["/home/maven/.m2", "/home/maven/.ssh", "/home/maven/.gnupg", "/home/maven/gitconf"]
 USER maven:maven
 WORKDIR /home/maven
 
