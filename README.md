@@ -16,9 +16,9 @@ This Docker image is intended to standardize the way we run project releases whe
   * [Fixing the Selinux Context for `private/`](#fixing-the-selinux-context-for-private)
   * [Ready to Run](#ready-to-run)
   * [Cleaning Up](#cleaning-up)
-- [ADVANCED: Docker / Environment Requirements for Releases That Manage Containers](#advanced-docker--environment-requirements-for-releases-that-manage-containers)
+- [ADVANCED: Releases That Manage Containers](#advanced-releases-that-manage-containers)
   * [Enable TCP Connections To Docker](#enable-tcp-connections-to-docker)
-  * [Using a Special Docker Network for Inter-Container Communications](#using-a-special-docker-network-for-inter-container-communications)
+  * [Inter-Container Communications](#inter-container-communications)
   * [Docker vs. firewalld](#docker-vs-firewalld)
 
 <!-- tocstop -->
@@ -103,7 +103,7 @@ The consequence of this is that, if you don't clean up your Docker system yourse
 $ for c in $(docker ps -a | grep 'commonjava/maven-release' | grep Exited | awk '{print $1}'); do docker rm $c; done
 ```
 
-## ADVANCED: Docker / Environment Requirements for Releases That Manage Containers
+## ADVANCED: Releases That Manage Containers
 
 Some Maven builds we have in Commonjava require building Docker images and running Docker containers in order to do integration tests. When you have a project like this, you'll need to make special preparations for the Docker environment in which you intend to run releases.
 
@@ -121,7 +121,7 @@ Then, restart your Docker daemon using something like:
 $ systemctl restart docker
 ```
 
-### Using a Special Docker Network for Inter-Container Communications
+### Inter-Container Communications
 
 Docker containers can't talk to each other when they use the default `docker0` network bridge. They can't even see each other. So, if your release (running in a container) needs to start other containers and then communicate with them, you'll need to create a separate Docker network for that. Since you're going to be interacting with the outside world (pulling down Maven plugins, publishing build output, etc.), this network will have to be a bridge network. By default (and for historical reasons), the `<maven-release-git-workdir>/scripts/start-release.sh` script assumes this network will be called `ci-network` and use the IP address range `172.18.0.0/24`, which means the DOCKER_HOST	environment variable passed into the release container will be `tcp://172.18.0.1:2375`.
 
