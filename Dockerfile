@@ -2,7 +2,7 @@ FROM centos:7
 MAINTAINER jdcasey@commonjava.org
 
 RUN yum -y update \
-    && yum -y install java-1.8.0-openjdk-devel git which \
+    && yum -y install java-1.8.0-openjdk-devel git which iproute bzip2 \
     && yum clean all \
     && useradd maven
 
@@ -18,7 +18,7 @@ RUN chown -R maven /home/maven/bin
 
 ADD bin/run-release.sh /home/maven/bin/run-release.sh
 
-VOLUME ["/home/maven/.m2", "/home/maven/.ssh", "/home/maven/.gnupg"]
+VOLUME ["/home/maven/.m2", "/home/maven/.ssh", "/home/maven/.gnupg", "/home/maven/gitconf"]
 USER maven:maven
 WORKDIR /home/maven
 
