@@ -2,6 +2,27 @@
 
 This Docker image is intended to standardize the way we run project releases where Apache Maven is in use. It forms a clean, known build environment in which there is no pre-existing Maven state (local repository) and where only the basics necessary for a Maven release are present.
 
+## Contents
+
+<!-- toc -->
+
+- [Getting the Image](#getting-the-image)
+- [Building the Image](#building-the-image)
+- [Using the Image](#using-the-image)
+  * [Pre-Requisite: GPG](#pre-requisite-gpg)
+  * [Pre-Requisite: Maven Settings](#pre-requisite-maven-settings)
+  * [Pre-Requisite: Git Configuration](#pre-requisite-git-configuration)
+  * [Pre-Requisite: SSH Keys for GitHub](#pre-requisite-ssh-keys-for-github)
+  * [Fixing the Selinux Context for `private/`](#fixing-the-selinux-context-for-private)
+  * [Ready to Run](#ready-to-run)
+  * [Cleaning Up](#cleaning-up)
+- [ADVANCED: Docker / Environment Requirements for Releases That Manage Containers](#advanced-docker--environment-requirements-for-releases-that-manage-containers)
+  * [Enable TCP Connections To Docker](#enable-tcp-connections-to-docker)
+  * [Using a Special Docker Network for Inter-Container Communications](#using-a-special-docker-network-for-inter-container-communications)
+  * [Docker vs. firewalld](#docker-vs-firewalld)
+
+<!-- tocstop -->
+
 ## Getting the Image
 
 This image should be available via:
@@ -80,5 +101,45 @@ The consequence of this is that, if you don't clean up your Docker system yourse
 
 ```
 $ for c in $(docker ps -a | grep 'commonjava/maven-release' | grep Exited | awk '{print $1}'); do docker rm $c; done
+```
+
+## ADVANCED: Docker / Environment Requirements for Releases That Manage Containers
+
+Some Maven builds we have in Commonjava require building Docker images and running Docker containers in order to do integration tests. When you have a project like this, you'll need to make special preparations for the Docker environment in which you intend to run releases.
+
+### Enable TCP Connections To Docker
+
+If you're going to use Docker containers during your release, your Docker daemon must listen on a TCP port. To enable this, edit your `/etc/sysconfig/docker` file as follows:
+
+```
+OPTIONS='--selinux-enabled --log-driver=journald -H tcp://0.0.0.0:2375 -H unix:///var/run/docker.sock'
+```
+
+Then, restart your Docker daemon using something like:
+
+```
+$ systemctl restart docker
+```
+
+### Using a Special Docker Network for Inter-Container Communications
+
+Docker containers can't talk to each other when they use the default `docker0` network bridge. They can't even see each other. So, if your release (running in a container) needs to start other containers and then communicate with them, you'll need to create a separate Docker network for that. Since you're going to be interacting with the outside world (pulling down Maven plugins, publishing build output, etc.), this network will have to be a bridge network. By default (and for historical reasons), the `<maven-release-git-workdir>/scripts/start-release.sh` script assumes this network will be called `ci-network` and use the IP address range `172.18.0.0/24`, which means the DOCKER_HOST	environment variable passed into the release container will be `tcp://172.18.0.1:2375`.
+
+You can create this `ci-network` bridge using the following command:
+
+```
+$ docker network create -d bridge ci-network
+```
+
+### Docker vs. firewalld
+
+Docker and firewalld have a fraught relationship. For most Docker use cases, they work together well enough. However, when you have a Docker container that requires access to the Docker daemon (to build or run containers), firewalld will do its best to block your access.
+
+I'm still working out the details of how to enable this use case elegantly with both Docker and firewalld enabled on the host, but from what I can tell now, you need to create a special iptables rule, using something like the following:
+
+```
+$ export gwip=$(docker network inspect ci-network --format '{{range .IPAM.Config}}{{.Gateway}}{{end}}')
+$ export ifc=$(ip -4 addr show | grep -B1 ${gwip} | head -1 | awk '{print $2}' | sed 's/://')
+$ iptables -A DOCKER -d ${gwip}/32 ! -i ${ifc} -o ${ifc} -p tcp -m tcp --dport 2375 -j ACCEPT
 ```
 
