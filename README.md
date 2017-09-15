@@ -135,11 +135,38 @@ $ docker network create -d bridge ci-network
 
 Docker and firewalld have a fraught relationship. For most Docker use cases, they work together well enough. However, when you have a Docker container that requires access to the Docker daemon (to build or run containers), firewalld will do its best to block your access.
 
-I'm still working out the details of how to enable this use case elegantly with both Docker and firewalld enabled on the host, but from what I can tell now, you need to create a special iptables rule, using something like the following:
+I'm still working out the details of how to script this elegantly, but you need to add your new network bridge to the `trusted` firewall zone. This worked for me:
+
 
 ```
 $ export gwip=$(docker network inspect ci-network --format '{{range .IPAM.Config}}{{.Gateway}}{{end}}')
 $ export ifc=$(ip -4 addr show | grep -B1 ${gwip} | head -1 | awk '{print $2}' | sed 's/://')
-$ iptables -A DOCKER -d ${gwip}/32 ! -i ${ifc} -o ${ifc} -p tcp -m tcp --dport 2375 -j ACCEPT
+
+Once you have the iterface, move it to the 'trusted' firewall zone...
+
+$ firewall-cmd --permanent --zone=public --remove-interface=$ifc
+$ firewall-cmd --permanent --zone=trusted --change-interface=ifc
+
+Then, make sure the NetworkManager scripts reflect this change...
+
+$ vi /etc/sysconfig/network-scripts/ifcfg-$ifc
+
+VERIFY that ZONE=trusted
+
+Now, stop docker and restart / reload firewalld
+
+$ systemctl stop docker
+$ systemctl restart firewalld  # OR: firewall-cmd --reload
+
+Just to be sure the interface is set up correctly, reload it and then verify the zone it's in...
+
+$ ifdown $ifc
+$ ifup $ifc
+$ firewall-cmd --get-zone-of-interface=$ifc
+trusted
+
+Now, restart Docker
+$ systemctl start docker
 ```
+
 
