@@ -6,7 +6,8 @@
 # NOTE: If you're using a different location than private/ to
 # store private files for use in this container, you'll need
 # to modify this script.
-PRIVATE_DIR=$(dirname $(dirname $(readlink -f "$0")))/private
+SCRIPT_DIR=$(dirname $(readlink -f "$0"))
+PRIVATE_DIR=$(dirname $SCRIPT_DIR)/private
 
 # If you use Docker with firewalld, you may have to specify
 # some specific configuration to allow this port to be
@@ -21,7 +22,9 @@ DOCKER_HOST="tcp://172.18.0.1:2375"
 # lets containers communicate with one another, which from
 # what I can tell isn't allowed with the normal docker0
 # bridge.
-DOCKER_NET="ci-network"
+DOCKER_NET=${DOCKER_NET:-ci-network}
+
+$SCRIPT_DIR/trust-docker-net.sh
 
 set -x
 
@@ -34,7 +37,7 @@ if [ "x${1}" != "x" ]; then
     shift
 fi
 
-name=$(dirname $git)#${branch}
+name=$(basename $GIT)-${BRANCH}-$(date '+%s')
 
 docker run -ti \
            --name $name \

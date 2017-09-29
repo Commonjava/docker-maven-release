@@ -135,11 +135,4 @@ $ docker network create -d bridge ci-network
 
 Docker and firewalld have a fraught relationship. For most Docker use cases, they work together well enough. However, when you have a Docker container that requires access to the Docker daemon (to build or run containers), firewalld will do its best to block your access.
 
-I'm still working out the details of how to enable this use case elegantly with both Docker and firewalld enabled on the host, but from what I can tell now, you need to create a special iptables rule, using something like the following:
-
-```
-$ export gwip=$(docker network inspect ci-network --format '{{range .IPAM.Config}}{{.Gateway}}{{end}}')
-$ export ifc=$(ip -4 addr show | grep -B1 ${gwip} | head -1 | awk '{print $2}' | sed 's/://')
-$ iptables -A DOCKER -d ${gwip}/32 ! -i ${ifc} -o ${ifc} -p tcp -m tcp --dport 2375 -j ACCEPT
-```
-
+To accomplish this, the `scripts/start-release.sh` script will call the `scripts/trust-docker-net.sh` script, which adds the docker interface given in `$DOCKER_NET` as a trusted interface via firewalld and restarts that interface to put the changes into effect.
